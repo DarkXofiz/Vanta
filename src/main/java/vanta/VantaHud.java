@@ -48,7 +48,7 @@ public final class VantaHud {
         Stats.poll(mc);
         VantaConfig cfg = VantaConfig.get();
         if (!cfg.enabled || mc.player == null || mc.options.hudHidden
-                || mc.getDebugHud().shouldShowDebugHud()) {
+                || mc.options.debugEnabled) {
             return;
         }
 

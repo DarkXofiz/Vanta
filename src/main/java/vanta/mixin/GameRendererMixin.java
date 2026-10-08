@@ -10,7 +10,7 @@ import vanta.VantaConfig;
 
 @Mixin(GameRenderer.class)
 public class GameRendererMixin {
-    @Inject(method = "tiltViewWhenHurt", at = @At("HEAD"), cancellable = true)
+    @Inject(method = {"bobViewWhenHurt", "tiltViewWhenHurt"}, at = @At("HEAD"), cancellable = true)
     private void vanta$noHurtShake(MatrixStack matrices, float tickDelta, CallbackInfo ci) {
         if (VantaConfig.get().noHurtShake) {
             ci.cancel();

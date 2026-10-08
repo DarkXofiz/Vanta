@@ -23,12 +23,12 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.8
+          gradle-version: 8.12
 
       - name: Wrapper jar yoksa uret
         run: |
           if [ ! -f gradle/wrapper/gradle-wrapper.jar ]; then
-            gradle wrapper --gradle-version 8.8
+            gradle wrapper --gradle-version 8.12
           fi
           chmod +x gradlew
 

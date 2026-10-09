@@ -15,6 +15,7 @@ import org.lwjgl.glfw.GLFW;
 public class VantaClient implements ClientModInitializer {
     public static KeyBinding menuKey;
     public static KeyBinding hudKey;
+    public static KeyBinding zoomKey;
 
     @Override
     public void onInitializeClient() {
@@ -24,6 +25,8 @@ public class VantaClient implements ClientModInitializer {
                 "key.vanta.menu", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_RIGHT_SHIFT, "category.vanta"));
         hudKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.vanta.hud", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_H, "category.vanta"));
+        zoomKey = KeyBindingHelper.registerKeyBinding(new KeyBinding(
+                "key.vanta.zoom", InputUtil.Type.KEYSYM, GLFW.GLFW_KEY_C, "category.vanta"));
 
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             while (menuKey.wasPressed()) {
@@ -43,7 +46,7 @@ public class VantaClient implements ClientModInitializer {
                 double reach = hit != null
                         ? player.getEyePos().distanceTo(hit.getPos())
                         : player.distanceTo(entity);
-                Stats.onHit(reach);
+                Stats.onHit(reach, entity.getId());
                 Visuals.onHit(world, entity);
             }
             return ActionResult.PASS;

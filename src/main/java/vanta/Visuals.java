@@ -22,6 +22,7 @@ public final class Visuals {
     private static final Set<Integer> DEAD = new HashSet<>();
     private static boolean hitboxApplied;
     private static boolean sprintForced;
+    private static Integer savedFov;
 
     private Visuals() {}
 
@@ -67,7 +68,23 @@ public final class Visuals {
         }
     }
 
+    private static void zoom(MinecraftClient mc) {
+        VantaConfig c = VantaConfig.get();
+        boolean want = c.zoomEnabled && VantaClient.zoomKey != null && VantaClient.zoomKey.isPressed()
+                && mc.currentScreen == null && mc.player != null;
+        net.minecraft.client.option.SimpleOption<Integer> opt = mc.options.getFov();
+        int cur = opt.getValue();
+        if (want) {
+            if (savedFov == null) savedFov = cur;
+            if (cur != c.zoomFov) opt.setValue(c.zoomFov);
+        } else if (savedFov != null) {
+            opt.setValue(savedFov);
+            savedFov = null;
+        }
+    }
+
     public static void tick(MinecraftClient mc) {
+        zoom(mc);
         ClientWorld w = mc.world;
         ClientPlayerEntity p = mc.player;
         if (w == null || p == null) {
@@ -95,7 +112,10 @@ public final class Visuals {
             for (Entity e : w.getEntities()) {
                 if (c.deathEffect && e instanceof PlayerEntity pl && pl != p) {
                     if (pl.isDead()) {
-                        if (DEAD.add(pl.getId())) deathBurst(w, pl);
+                        if (DEAD.add(pl.getId())) {
+                            deathBurst(w, pl);
+                            Stats.onKill(pl.getId());
+                        }
                     } else {
                         DEAD.remove(pl.getId());
                     }

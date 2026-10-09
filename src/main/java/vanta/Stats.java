@@ -13,8 +13,13 @@ public final class Stats {
 
     public static int combo;
     public static double lastReach;
+    public static int kills;
+    public static int deaths;
     private static long lastHit;
+    private static int lastHitId = -1;
     private static int prevHurt;
+    private static boolean wasDead;
+    private static long sessionStart;
 
     public static double speed;
     private static double px;
@@ -57,8 +62,16 @@ public final class Stats {
             combo = 0;
             hasPos = false;
             speed = 0;
+            sessionStart = 0;
+            wasDead = false;
             return;
         }
+        if (sessionStart == 0) sessionStart = System.currentTimeMillis();
+
+        boolean dead = p.isDead();
+        if (dead && !wasDead) deaths++;
+        wasDead = dead;
+
         if (p.hurtTime > prevHurt) combo = 0;
         prevHurt = p.hurtTime;
         if (combo > 0 && System.currentTimeMillis() - lastHit > 3000L) combo = 0;
@@ -72,9 +85,35 @@ public final class Stats {
         hasPos = true;
     }
 
-    public static void onHit(double reach) {
+    public static void onHit(double reach, int targetId) {
         lastReach = reach;
         combo++;
         lastHit = System.currentTimeMillis();
+        lastHitId = targetId;
+    }
+
+    /** Yakindaki bir oyuncu oldugunde cagrilir, son vurulan hedefse kill sayilir. */
+    public static void onKill(int targetId) {
+        if (targetId == lastHitId && System.currentTimeMillis() - lastHit < 6000L) {
+            kills++;
+            lastHitId = -1;
+        }
+    }
+
+    public static String sessionText() {
+        if (sessionStart == 0) return "0:00";
+        long s = (System.currentTimeMillis() - sessionStart) / 1000L;
+        long h = s / 3600L;
+        long m = (s % 3600L) / 60L;
+        long sec = s % 60L;
+        return h > 0 ? String.format("%d:%02d:%02d", h, m, sec) : String.format("%d:%02d", m, sec);
+    }
+
+    public static void resetSession() {
+        kills = 0;
+        deaths = 0;
+        combo = 0;
+        lastReach = 0;
+        sessionStart = System.currentTimeMillis();
     }
 }

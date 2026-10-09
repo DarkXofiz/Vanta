@@ -25,13 +25,21 @@ public final class VantaHud {
     private static final int K = 22;
     private static final int G = 2;
     private static final int GAP = 4;
-    private static final int BG_TOP = 0xB0141420;
-    private static final int BG_BOT = 0x90000000;
-    private static final int KEY_BG = 0x90000000;
     private static final int GRAY = 0xFFAAAAAA;
     private static final int WHITE = 0xFFFFFFFF;
     private static final DateTimeFormatter TIME = DateTimeFormatter.ofPattern("HH:mm:ss");
     private static final String[] DIRS = {"Güney +Z", "Batı -X", "Kuzey -Z", "Doğu +X"};
+
+    /** Ana HUD kutusunun ekran koordinati (editor icin). */
+    public static int mainRx;
+    public static int mainRy;
+    public static int mainRw;
+    public static int mainRh;
+
+    static int bgTop;
+    static int bgBot;
+    static int keyBg;
+    static boolean shadow = true;
 
     private record Line(String label, String value, int color) {}
 
@@ -47,10 +55,18 @@ public final class VantaHud {
         MinecraftClient mc = MinecraftClient.getInstance();
         Stats.poll(mc);
         VantaConfig cfg = VantaConfig.get();
-        if (!cfg.enabled || mc.player == null || mc.options.hudHidden
-                || mc.options.debugEnabled) {
+        mainRw = 0;
+        mainRh = 0;
+        TargetHud.clear();
+        if (!cfg.enabled || mc.player == null || mc.options.hudHidden || mc.options.debugEnabled) {
             return;
         }
+
+        int alpha = Math.round(255f * cfg.bgOpacity / 100f);
+        bgTop = (alpha << 24) | 0x141420;
+        bgBot = Math.round(alpha * 0.85f) << 24;
+        keyBg = Math.max(0x40, Math.round(alpha * 0.9f)) << 24;
+        shadow = cfg.textShadow;
 
         TextRenderer tr = mc.textRenderer;
         int accent = Theme.accent();
@@ -58,10 +74,13 @@ public final class VantaHud {
         int scrH = mc.getWindow().getScaledHeight();
 
         if (cfg.crosshairIndicator && mc.targetedEntity instanceof LivingEntity) {
-            crosshair(ctx, scrW / 2, scrH / 2);
+            int col = cfg.indicatorColor == 1 ? accent : cfg.indicatorColor == 2 ? WHITE : 0xFFFF3B3B;
+            crosshair(ctx, scrW / 2, scrH / 2, col);
         }
         if (cfg.targetHud) {
-            targetHud(ctx, mc, tr, accent, scrW, scrH);
+            LivingEntity t = TargetHud.pick(mc, cfg);
+            if (t == null && HudEditScreen.active) t = mc.player;
+            if (t != null) TargetHud.draw(ctx, mc, tr, t, accent, scrW, scrH);
         }
 
         List<Block> blocks = new ArrayList<>();
@@ -86,8 +105,15 @@ public final class VantaHud {
 
         boolean left = cfg.corner % 2 == 0;
         boolean top = cfg.corner < 2;
-        int x = left ? 4 : sw - W - 4;
-        int y = top ? 4 : sh - total - 4;
+        int x = (left ? 4 : sw - W - 4) + Math.round(cfg.hudX);
+        int y = (top ? 4 : sh - total - 4) + Math.round(cfg.hudY);
+        x = MathHelper.clamp(x, 0, Math.max(0, sw - W));
+        y = MathHelper.clamp(y, 0, Math.max(0, sh - total));
+
+        mainRx = Math.round(x * s);
+        mainRy = Math.round(y * s);
+        mainRw = Math.round(W * s);
+        mainRh = Math.round(total * s);
 
         ctx.getMatrices().push();
         ctx.getMatrices().scale(s, s, 1f);
@@ -98,8 +124,7 @@ public final class VantaHud {
         ctx.getMatrices().pop();
     }
 
-    private static void crosshair(DrawContext c, int cx, int cy) {
-        int col = 0xFFFF3B3B;
+    private static void crosshair(DrawContext c, int cx, int cy, int col) {
         c.fill(cx - 8, cy - 8, cx - 4, cy - 7, col);
         c.fill(cx - 8, cy - 8, cx - 7, cy - 4, col);
         c.fill(cx + 4, cy - 8, cx + 8, cy - 7, col);
@@ -108,31 +133,6 @@ public final class VantaHud {
         c.fill(cx - 8, cy + 4, cx - 7, cy + 8, col);
         c.fill(cx + 4, cy + 7, cx + 8, cy + 8, col);
         c.fill(cx + 7, cy + 4, cx + 8, cy + 8, col);
-    }
-
-    private static void targetHud(DrawContext c, MinecraftClient mc, TextRenderer tr,
-                                  int accent, int scrW, int scrH) {
-        if (!(mc.targetedEntity instanceof LivingEntity t) || !t.isAlive()) return;
-        int w = 110;
-        int h = 26;
-        int x = scrW / 2 - w / 2;
-        int y = scrH / 2 + 24;
-
-        float hp = t.getHealth();
-        float max = Math.max(1f, t.getMaxHealth());
-        float ratio = MathHelper.clamp(hp / max, 0f, 1f);
-        int col = ratio > 0.6f ? 0xFF55FF55 : ratio > 0.3f ? 0xFFFFFF55 : 0xFFFF5555;
-        String hs = String.format("%.1f", hp);
-        if (t.getAbsorptionAmount() > 0) hs += " +" + String.format("%.1f", t.getAbsorptionAmount());
-
-        c.fillGradient(x, y, x + w, y + h, BG_TOP, BG_BOT);
-        c.fill(x, y, x + w, y + 1, accent);
-        String name = tr.trimToWidth(t.getName().getString(), w - 12 - tr.getWidth(hs));
-        c.drawText(tr, name, x + 4, y + 4, WHITE, true);
-        c.drawText(tr, hs, x + w - 4 - tr.getWidth(hs), y + 4, col, true);
-        int bw = w - 8;
-        c.fill(x + 4, y + 15, x + 4 + bw, y + 21, 0xFF222222);
-        c.fill(x + 4, y + 15, x + 4 + (int) (bw * ratio), y + 21, col);
     }
 
     private static List<Line> infoLines(MinecraftClient mc, VantaConfig cfg) {
@@ -157,6 +157,9 @@ public final class VantaHud {
         if (cfg.showReach) {
             l.add(new Line("Reach", Stats.lastReach > 0 ? String.format("%.2f", Stats.lastReach) : "--", WHITE));
         }
+        if (cfg.showKd) {
+            l.add(new Line("K/D", Stats.kills + " / " + Stats.deaths, WHITE));
+        }
         if (cfg.showCoords) {
             l.add(new Line("XYZ", p.getBlockX() + " " + p.getBlockY() + " " + p.getBlockZ(), WHITE));
         }
@@ -174,6 +177,9 @@ public final class VantaHud {
         if (cfg.autoSprint) {
             l.add(new Line("Sprint", p.isSprinting() ? "Açık" : "Kapalı",
                     p.isSprinting() ? 0xFF55FF55 : GRAY));
+        }
+        if (cfg.showSession) {
+            l.add(new Line("Süre", Stats.sessionText(), WHITE));
         }
         if (cfg.showTime) {
             l.add(new Line("Saat", LocalTime.now().format(TIME), WHITE));
@@ -207,7 +213,7 @@ public final class VantaHud {
     }
 
     private static void bg(DrawContext c, VantaConfig cfg, int x, int y, int w, int h) {
-        if (cfg.background) c.fillGradient(x, y, x + w, y + h, BG_TOP, BG_BOT);
+        if (cfg.background && (bgTop >>> 24) != 0) c.fillGradient(x, y, x + w, y + h, bgTop, bgBot);
     }
 
     private static Block infoBlock(List<Line> lines, VantaConfig cfg) {
@@ -217,8 +223,8 @@ public final class VantaHud {
             c.fill(x, y, x + W, y + 1, accent);
             int ly = y + 4;
             for (Line ln : lines) {
-                c.drawText(tr, ln.label(), x + 5, ly, GRAY, true);
-                c.drawText(tr, ln.value(), x + W - 4 - tr.getWidth(ln.value()), ly, ln.color(), true);
+                c.drawText(tr, ln.label(), x + 5, ly, GRAY, shadow);
+                c.drawText(tr, ln.value(), x + W - 4 - tr.getWidth(ln.value()), ly, ln.color(), shadow);
                 ly += 10;
             }
         });
@@ -251,7 +257,7 @@ public final class VantaHud {
 
     private static void key(DrawContext c, TextRenderer tr, String label, boolean down,
                             int x, int y, int w, int h, int accent) {
-        c.fill(x, y, x + w, y + h, down ? pressed(accent) : KEY_BG);
+        c.fill(x, y, x + w, y + h, down ? pressed(accent) : keyBg);
         if (!down) c.fill(x, y + h - 1, x + w, y + h, 0x40FFFFFF);
         int tw = tr.getWidth(label);
         c.drawText(tr, label, x + (w - tw) / 2, y + (h - 8) / 2, WHITE, false);
@@ -259,7 +265,7 @@ public final class VantaHud {
 
     private static void mouse(DrawContext c, TextRenderer tr, String label, int cps, boolean down,
                               int x, int y, int w, int h, int accent) {
-        c.fill(x, y, x + w, y + h, down ? pressed(accent) : KEY_BG);
+        c.fill(x, y, x + w, y + h, down ? pressed(accent) : keyBg);
         if (!down) c.fill(x, y + h - 1, x + w, y + h, 0x40FFFFFF);
         c.drawText(tr, label, x + (w - tr.getWidth(label)) / 2, y + 3, WHITE, false);
         String s = String.valueOf(cps);
@@ -284,7 +290,7 @@ public final class VantaHud {
                 if (s.isDamageable()) {
                     int left = s.getMaxDamage() - s.getDamage();
                     c.drawText(tr, String.valueOf(left), x + 24, iy + 4,
-                            0xFF000000 | s.getItemBarColor(), true);
+                            0xFF000000 | s.getItemBarColor(), shadow);
                 }
             }
         });
@@ -303,8 +309,8 @@ public final class VantaHud {
                 if (e.getAmplifier() > 0) name += " " + (e.getAmplifier() + 1);
                 String time = e.getDuration() == -1 ? "--" : fmt(e.getDuration());
                 int col = 0xFF000000 | e.getEffectType().getColor();
-                c.drawText(tr, name, x + 4, ly, col, true);
-                c.drawText(tr, time, x + W - 4 - tr.getWidth(time), ly, WHITE, true);
+                c.drawText(tr, name, x + 4, ly, col, shadow);
+                c.drawText(tr, time, x + W - 4 - tr.getWidth(time), ly, WHITE, shadow);
                 ly += 10;
             }
         });

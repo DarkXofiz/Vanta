@@ -1,5 +1,6 @@
 {
   "key.vanta.menu": "Open Vanta menu",
   "key.vanta.hud": "Toggle Vanta HUD",
-  "category.vanta": "Vanta"
+  "category.vanta": "Vanta",
+  "key.vanta.zoom": "Zoom"
 }
